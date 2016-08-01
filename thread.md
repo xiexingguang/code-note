@@ -28,6 +28,82 @@ try{
 ##4 volaite 关键字理解
 voloite只能修饰变量，它的语义是保证线程可见，即将线程的工作内存数据刷新到主内存中去。这个可以根据jvm得内存模型得出来。注意它只能保证可见性，并不能保证线程安全。比如对应`private volaite int x = 4` 比如这个变量，如果有2个线程在对它写，则会有线程安全问题。
 比如A线程将x 改为 x+1 即结果为5，线程B,也执行加1操作,由于它读到的x也为4,而值为5是在它后面刷新到主内存，所以对对于线程B而已,加1得到结果也为5.与本该的6不符合。所以也会存在线程安全问题
+##5 countdownLatch源码解析
+代码
+
+```java
+private static final class Sync extends AbstractQueuedSynchronizer {
+        private static final long serialVersionUID = 4982264981922014374L;
+
+        Sync(int count) {
+            setState(count);
+        }
+
+        int getCount() {
+            return getState();
+        }
+  
+        //返回0,表示获取到锁,线程可以执行了,如果返回false则表示没有获取到锁,继续阻塞
+        protected int tryAcquireShared(int acquires) {
+            return (getState() == 0) ? 1 : -1; 
+        }
+
+        protected boolean tryReleaseShared(int releases) {
+            // Decrement count; signal when transition to zero
+            for (;;) {
+                int c = getState();
+                if (c == 0)
+                    return false;
+                int nextc = c-1;
+                if (compareAndSetState(c, nextc))
+                    return nextc == 0;
+            }
+        }
+    }
+    //可以看到这个await方法是调用的可中断的获取锁的实现
+    // 由此可以看到，await操作只是判断state是否为0,如果不为0继续阻塞
+    // 如果为0 则获取执行权限,线程不阻塞获的执行权限
+     public void await() throws InterruptedException {
+        sync.acquireSharedInterruptibly(1); //《1》
+    }
+    
+     public final void acquireSharedInterruptibly(int arg)
+            throws InterruptedException {
+        if (Thread.interrupted())
+            throw new InterruptedException();
+        if (tryAcquireShared(arg) < 0)
+            doAcquireSharedInterruptibly(arg);
+    }
+  
+    //sync 是countDownLatch内部实现的一个队列同步器
+    //所以我们看到,countDown 操作实际上将state递减操作,直到
+    //state为0，
+    public void countDown() {
+        sync.releaseShared(1);
+    }
+   
+     protected boolean tryReleaseShared(int releases) {
+            // Decrement count; signal when transition to zero
+            for (;;) {
+                int c = getState(); //这个传递的值state就是从countDownLatch构造函数传递进来的
+                
+                //如果为0,表示还没有获取锁,这个时候release返回false
+                if (c == 0) 
+                    return false;
+                int nextc = c-1;//递减
+                if (compareAndSetState(c, nextc))//cas 设置值
+                    return nextc == 0;//如果最后减1为0,表示释放成功
+            }
+        }
+
+```
+总结：
+ 1.await操作就是判断state状态是否为0,为0表示不阻塞。countDownLatch操作则将state状态递减。 这个实现跟AQS关系密切,下次单独写个md解析其实现原理
+ 2.该实现是可重入的。
+##6 semaphore实现
+ 
+ 
+ 
 
 
 
