@@ -23,6 +23,9 @@ try{
   
 ###2.2 thread.isInterrupted()
 查看线程中断状态。如果调用了thread.interrupt()后，会将状态设置为ture.但有时候我们发现明显我们已经调用thread.interrupt方法,可是为什么thread.isInterrupted方法返回的还是false呢？这里其实可以理解，因为你调用完后,线程响应了中断状态。已经将中断标记复位了，即为false了。
+注意：
+线程静态方法Thread.interrupted()是线程静态方法
+interrupt,`isInterrupted`是属性方法。
 ##3 join理解
 `thread.join()` 表示的意思线程加入到当前线程中，一定要理解当前线程这个概念，当前线程就是运行thrad.join代码的这个线程，join的意思就是将当前线程阻塞，调度给thread线程运行。但是有个前提条件就是thread必须是alive的。也就是thread必须start状态的。
 ##4 volaite 关键字理解
@@ -101,6 +104,13 @@ private static final class Sync extends AbstractQueuedSynchronizer {
  1.await操作就是判断state状态是否为0,为0表示不阻塞。countDownLatch操作则将state状态递减。 这个实现跟AQS关系密切,下次单独写个md解析其实现原理
  2.该实现是可重入的。
 ##6 semaphore实现
+
+##7 理解voliate 和synchronized的区别
+voliate修饰的变量被某个线程更改， 从底层来讲，语义为 将变量从高速缓存刷新到主内存，同时其他线程缓存的变量失效,需要重新从主内存拉取。就这样。
+即对其他线程是可见的。
+ 
+ x=1    x=1
+ x=2    
  
  
  
