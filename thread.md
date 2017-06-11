@@ -1,3 +1,4 @@
+[TOC]
 #线程
 ## 1  线程wait,notify理解
 ### 1.1 why约定wait,notify需要在同步块里面调用？
@@ -26,12 +27,94 @@ try{
 注意：
 线程静态方法Thread.interrupted()是线程静态方法
 interrupt,`isInterrupted`是属性方法。
+
+
+```java
+  最新理解：
+     摘自知乎
+其实这是一个如何停止线程的问题，要真正理解interrupt()方法，要先了解
+
+stop()方法。在以前通过thread.stop()可以停止一个线程，注意stop()方
+
+法是可以由一个线程去停止另外一个线程，这种方法太过暴力而且是不安全的.
+
+怎么说呢，线程A调用线程B的stop方法去停止线程B，调用这个方法的时候线程
+
+A其实并不知道线程B执行的具体情况，这种突然间地停止会导致线程B的一些清
+
+理工作无法完成，还有一个情况是执行stop方法后线程B会马上释放锁，这有可
+
+能会引发数据不同步问题。基于以上这些问题，stop()方法被抛弃了。在这样的
+
+情况下，interrupt()方法出现了，它与stop不同，它不会真正停止一个线
+
+程，它仅仅是给这个线程发了一个信号告诉它它应该结束了（设置一个停止标
+
+志）。真正符合安全的做法，就是让线程自己去结束自己，而不是让一个线程去
+
+结束另外一个线程。通过interrupt()和.interrupted()方法两者的配合可
+
+以实现正常去停止一个线程，线程A通过调用线程B的interrupt方法通知线程B
+
+让它结束线程，在线程B的run方法内部，通过循环检查.interrupted()方法
+
+是否为真来接收线程A的信号，如果为真就可以抛出一个异常，在catch中完成一
+
+些清理工作，然后结束线程。Thread.interrupted()会清除标志位，并不是
+
+代表线程又恢复了，可以理解为仅仅是代表它已经响应完了这个中断信号然后又
+
+重新置为可以再次接收信号的状态。从始至终，理解一个关键点，interrupt()
+
+方法仅仅是改变一个标志位的值而已，和线程的状态并没有必然的联系。理解了这点，其他的问题就很清晰了。
+  
+```
+可见java设置这种中断机制主要还是为了方便安全的终止线程。
+
+代码理解下，对于一个正常的线程即不是`wait,sleep,join`状态的线程，我们看看如何中断它
+
+```java
+public static void main(String[] args) {
+
+        Thread t1 = new Thread(new Th2());
+        t1.start();
+        System.out.println("开始中断线程");
+        t1.interrupt(); //中断
+
+
+
+    }
+    static class Th2 implements Runnable {
+        @Override
+        public void run() {
+            System.out.println("正常线程");
+           // System.out.println(Thread.interrupted()); //当前线程 返回为ture
+ 
+    //不停的检查，有没有线程中断我，有则退出。
+            while (!Thread.interrupted()) {
+                System.out.println("没有人中断我继续我的工作");
+            }
+            System.out.println("中断状态为===》" + Thread.currentThread().isInterrupted() + "不做工作了 ,我要响应中断"); //返回为false
+
+        }
+    }
+```
+`Thread.interrupted()`这个方法为检查中断状态，并复位。什么意思呢?
+即线程被中断了，第一次调用Thread.interrupted()；方法会将flag设置为true,但马上又会设置成false.
+
+可以看到，java的中断机制只是发送一个信号，最后怎么处理还是看线程自己。有的人可能会说了，这么简单为什么我们不自己在应用层面实现呢?比如给一个全局变量，然后线程去检测这个变量，是可以这样做的，但是这个变量需要我们自己去维护，既然jvm层面已经帮我们实现了为啥不去用呢？
+
+
+
+
+
+
 ## 3 join理解
 `thread.join()` 表示的意思线程加入到当前线程中，一定要理解当前线程这个概念，当前线程就是运行thrad.join代码的这个线程，join的意思就是将当前线程阻塞，调度给thread线程运行。但是有个前提条件就是thread必须是alive的。也就是thread必须start状态的。
-##4 volaite 关键字理解
+## 4 volaite 关键字理解
 voloite只能修饰变量，它的语义是保证线程可见，即将线程的工作内存数据刷新到主内存中去。这个可以根据jvm得内存模型得出来。注意它只能保证可见性，并不能保证线程安全。比如对应`private volaite int x = 4` 比如这个变量，如果有2个线程在对它写，则会有线程安全问题。
 比如A线程将x 改为 x+1 即结果为5，线程B,也执行加1操作,由于它读到的x也为4,而值为5是在它后面刷新到主内存，所以对对于线程B而已,加1得到结果也为5.与本该的6不符合。所以也会存在线程安全问题
-##5 countdownLatch源码解析
+## 5 countdownLatch源码解析
 代码
 
 ```java
@@ -103,16 +186,17 @@ private static final class Sync extends AbstractQueuedSynchronizer {
 总结：
  1.await操作就是判断state状态是否为0,为0表示不阻塞。countDownLatch操作则将state状态递减。 这个实现跟AQS关系密切,下次单独写个md解析其实现原理
  2.该实现是可重入的。
-##6 semaphore实现
+## 6 semaphore实现
 
-##7 理解voliate 和synchronized的区别
+## 7 理解voliate 和synchronized的区别
 voliate修饰的变量被某个线程更改， 从底层来讲，语义为 将变量从高速缓存刷新到主内存，同时其他线程缓存的变量失效,需要重新从主内存拉取。就这样。
 即对其他线程是可见的。
  
  x=1    x=1
  x=2    
  
- 
+## 8 AQS 源码实现分析
+
  
 
 
