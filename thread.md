@@ -1,5 +1,6 @@
 [TOC]
-#线程
+
+# 线程
 ## 1  线程wait,notify理解
 ### 1.1 why约定wait,notify需要在同步块里面调用？
 首先看如下代码：
@@ -100,13 +101,9 @@ public static void main(String[] args) {
     }
 ```
 `Thread.interrupted()`这个方法为检查中断状态，并复位。什么意思呢?
-即线程被中断了，第一次调用Thread.interrupted()；方法会将flag设置为true,但马上又会设置成false.
+即线程被中断了，第一次调用Thread.interrupted()；方法会将flag设置为true,第二次调用马上又会设置成false.
 
 可以看到，java的中断机制只是发送一个信号，最后怎么处理还是看线程自己。有的人可能会说了，这么简单为什么我们不自己在应用层面实现呢?比如给一个全局变量，然后线程去检测这个变量，是可以这样做的，但是这个变量需要我们自己去维护，既然jvm层面已经帮我们实现了为啥不去用呢？
-
-
-
-
 
 
 ## 3 join理解
@@ -188,14 +185,217 @@ private static final class Sync extends AbstractQueuedSynchronizer {
  2.该实现是可重入的。
 ## 6 semaphore实现
 
-## 7 理解voliate 和synchronized的区别
+
+
+## 7 ReetankLock源码解析
+  这个锁支持可重入，且是排它锁即同一时刻只能有一个线程进入临界区它有两种实现，一种是公平，一种是非公平。先看非公平实现
+  
+```java
+
+ final void lock() {
+ //如果当前stat状态为0表示可以获取同步状态，
+            if (compareAndSetState(0, 1))
+            //获取成功，设置当前线程为排它锁 目前持有的线程
+           setExclusiveOwnerThread(Thread.currentThread());
+            else //否则尝试获取同步状态
+                acquire(1); //出发tryAcquire方法
+        }
+
+        protected final boolean tryAcquire(int acquires) {
+            return nonfairTryAcquire(acquires);
+        }
+    }
+
+
+ final boolean nonfairTryAcquire(int acquires) {
+            final Thread current = Thread.currentThread();
+            int c = getState(); //获取当前状态
+            if (c == 0) { //如果为0表示可以获取
+                if (compareAndSetState(0, acquires)) {
+                    //设置当前线程为排它线程的owner
+                    setExclusiveOwnerThread(current);
+                    return true;
+                }
+            }
+            //检查当前线程是否是之前同一个线程，实现可重入的重要手段，如果是同一个线程，则直接在stat状态上增加即可
+            else if (current == getExclusiveOwnerThread()) {
+                int nextc = c + acquires;
+                if (nextc < 0) // overflow
+                    throw new Error("Maximum lock count exceeded");
+                setState(nextc);
+                return true;
+            }
+            return false;
+        }
+        
+        //释放锁
+          protected final boolean tryRelease(int releases) {
+            int c = getState() - releases; //先递减
+            if (Thread.currentThread() != getExclusiveOwnerThread())
+                throw new IllegalMonitorStateException();
+            boolean free = false;
+            if (c == 0) { //如果为stat为0 表示当前已经没有人持有锁了
+                free = true;
+                setExclusiveOwnerThread(null);//设置当前线程为null
+            }
+            setState(c);//设置stat状态
+            return free;
+        }
+              
+```
+公平锁实现
+
+```java 
+protected final boolean tryAcquire(int acquires) {
+            final Thread current = Thread.currentThread();
+            int c = getState();
+            if (c == 0) {
+            //判断当前节点是否前驱节点，如果有说明当前节点前面还有，这个是实现公平的关键之处
+                if (!hasQueuedPredecessors() &&
+                    compareAndSetState(0, acquires)) {
+                    setExclusiveOwnerThread(current);
+                    return true;
+                }
+            }
+            else if (current == getExclusiveOwnerThread()) {
+                int nextc = c + acquires;
+                if (nextc < 0)
+                    throw new Error("Maximum lock count exceeded");
+                setState(nextc);
+                return true;
+            }
+            return false;
+        }
+```
+可以看到只要明白了**AQS**这些真的so easy
+
+
+## 8 理解voliate 和synchronized的区别
 voliate修饰的变量被某个线程更改， 从底层来讲，语义为 将变量从高速缓存刷新到主内存，同时其他线程缓存的变量失效,需要重新从主内存拉取。就这样。
 即对其他线程是可见的。
  
  x=1    x=1
  x=2    
  
-## 8 AQS 源码实现分析
+## 9 AQS 实现总结
+> 1.用一个state标记状态，即是否可以进入临界区。
+> 2.用队列维护如果线程没有获取到进入临界区的状态则park该线程，并将线程入队列。用一个双向链表维护起来。
+> 3.如果当前线程离开临界区，则upark 该节点的后继节点。
+
+**需要注意**
+  1.aqs其实就是维护了一个队列,出队,入队的操作,还有一些线程同的唤醒与阻塞。说白了，它就相当于一个指挥官控制着线程该如何进入临界区。
+  2.实际上最终判断线程是否有权利进入临界区这个能力，AQS 通过`tryAcquire（int args）`这个方法暴露给子类去实现。这样子类就可以实现各种各样的同步器了。
+  3.注意`tryAcquire（int args）` 理解这个方法里面的args 含义。其实它可以为任意值，他表示的就是 一个stat增加或减少的幅度值。比如当 args为2 。那么当线程进来的时候 newstate = currentState + args .当线程出去的时候 newstat = curretnState - args。即我们只要保证了
+获取锁，和释放锁的步调一致即可。args随便取。 在有些同步器中stat=0表示
+可以获取锁，其实这个也是可以由我们自己控制的。我们也可以设计成stat=-1表示可以获取同步空间。所以这个灵活性很大。不得不说这是个不错的设计。
+AQS负责将麻烦的线程调度即怎么唤醒，怎么等待等一些操作自己实现。将判断是否具有进入临界区间留给子类实现
+
+
+
+
+## 10 线程池原理分析
+
+ 这是一张大致的类图
+ ![](media/14977141354283.jpg)
+只是把类标记出来，稍后一个个理解
+
+**Executor:**
+![](media/14977142570352.jpg)
+这个顶级接口只有一个方法execute，这个方法最终会执行提交上来的任务。它的职责是执行。
+**ExecutorService**
+![](media/14977143576136.jpg)
+
+这个接口继承了Executor接口，同时具备了服务的功能。
+
+即具有提交任务，也有关闭拒绝任务的功能呢。
+**AbstractExecutorService**
+上面都是接口这个是抽象类。
+我们看看这个类实现的方法
+![](media/14977152929852.jpg)
+主要为将task封装成`FutureTask`。这个类后面解释
+这个交给子类去实现，execute方法。在看看`invoke相关方法`
+
+```java
+public <T> List<Future<T>> invokeAll(Collection<? extends Callable<T>> tasks)
+        throws InterruptedException {
+        if (tasks == null)
+            throw new NullPointerException();
+        ArrayList<Future<T>> futures = new ArrayList<Future<T>>(tasks.size());
+        boolean done = false;
+        try {
+            for (Callable<T> t : tasks) {
+                RunnableFuture<T> f = newTaskFor(t);
+                futures.add(f);
+                execute(f);
+            }
+            for (int i = 0, size = futures.size(); i < size; i++) {
+                Future<T> f = futures.get(i);
+                if (!f.isDone()) {
+                    try {
+                        f.get();
+                    } catch (CancellationException ignore) {
+                    } catch (ExecutionException ignore) {
+                    }
+                }
+            }
+            done = true;
+            return futures;
+        } finally {
+            if (!done)
+                for (int i = 0, size = futures.size(); i < size; i++)
+                    futures.get(i).cancel(true);
+        }
+    }
+```
+这个抽象类实现了sumbit方法，其中sumbit是一个模板方法而已。还有一些invokef方法，这些后面在讲。先把整个脉络梳理下。下面我们看看这个抽象类的实现类`ThreadPoolExecutor`
+
+**ThreadPoolExecutor**
+这个类比较重要，好像看到很多文章都对它进行了源码分析.先看看我们最关系的`execute`方法
+
+```java
+public void execute(Runnable command) {
+        if (command == null)
+            throw new NullPointerException();
+        /*
+         * Proceed in 3 steps:
+         *
+         * 1. If fewer than corePoolSize threads are running, try to
+         * start a new thread with the given command as its first
+         * task.  The call to addWorker atomically checks runState and
+         * workerCount, and so prevents false alarms that would add
+         * threads when it shouldn't, by returning false.
+         *
+         * 2. If a task can be successfully queued, then we still need
+         * to double-check whether we should have added a thread
+         * (because existing ones died since last checking) or that
+         * the pool shut down since entry into this method. So we
+         * recheck state and if necessary roll back the enqueuing if
+         * stopped, or start a new thread if there are none.
+         *
+         * 3. If we cannot queue task, then we try to add a new
+         * thread.  If it fails, we know we are shut down or saturated
+         * and so reject the task.
+         */
+        int c = ctl.get();
+        if (workerCountOf(c) < corePoolSize) { //如果当前线程少于核心线程，则新增一个线程
+            if (addWorker(command, true))
+                return;
+            c = ctl.get();
+        }
+        if (isRunning(c) && workQueue.offer(command)) {
+            int recheck = ctl.get();
+            if (! isRunning(recheck) && remove(command))
+                reject(command);
+            else if (workerCountOf(recheck) == 0)
+                addWorker(null, false);
+        }
+        else if (!addWorker(command, false))
+            reject(command);
+    }
+```
+
+
+
 
  
 
