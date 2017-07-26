@@ -1,27 +1,12 @@
-#基础常识
-##1. equals,==
+# 基础常识
+## 1 equals,==
 equals比较的是内容，==比较的是内存地址。Object类的equals方法比较的是地址.所以子类如果要实现自己的相等逻辑就必须重写equlas。因为不重写默认是父类的equals方法比较的是地址。
 
 为什么重写equals时要重写hashCode?
->	如果你重载了equals，比如说是基于对象的内容实现的，而保留hashCode的实现不变，那么很可能某
-	两个对象明明是“相等”，而hashCode却不一样。这样，当你用其中的一个作为键保存到hashMap、
-	hasoTable或hashSet中，再以“相等的”找另一个作为键值去查找他们的时候，则根本找不到。使用
-	HashMap，如果key是自定义的类，就必须重写hashcode()和equals()。而对于每一个对象，通过
-	其hashCode()方法可为其生成一个整形值（散列码），该整型值被处理后，将会作为数组下标，存放
-	该对象所对应的Entry（存放该对象及其对应值）。 equals()方法则是在HashMap中插入值或查
-	询时会使用到。当HashMap中插入值或查询值对应的散列码与数组中的散列码相等时，则会通
-	过equals方法比较key值是否相等，所以想以自建对象作为HashMap的key，必须重写该对象继
-	承object的hashCode和equals方法。 2.本来不就有hashcode()和equals()了么？干嘛要
-	重写，直接用原来的不行么？ HashMap中，如果要比较key是否相等，要同时使用这两个函数！因
-	为自定义的类的hashcode()方法继承于Object类，其hashcode码为默认的内存地址，这样即便
-	有相同含义的两个对象，比较也是不相等的，例如，生成了两个“羊”对象，正常理解这两个对象应该
-	是相等的，但如果你不重写 hashcode（）方法的话，比较是不相等的！HashMap中的比较key是这
-	样的，先求出key的hashcode(),比较其值是否相等，若相等再比较equals(),若相等则认为他们
-	是相等的。若equals()不相等则认为他们不相等。如果只重写hashcode()不重写equals()方法
-	，当比较equals()时只是看他们是否为同一对象（即进行内存地址的比较）,所以必定要两个方法
-	一起重写。HashMap用来判断key是否相等的方法，其实是调用了HashSet判断加入元素是否相等。
 
-总结一句就是：因为在Object类中，equals比较的是地址,hashCode返回得也是对象的地址这样逻辑和物理一致。后续的子类也需要保证逻辑地址和物理地址一致。
++ 1. 因为在Object类中，equals比较的是地址,hashCode返回得也是对象的地址这样逻辑和物理一致。后续的子类也最好保证逻辑地址和物理地址一致。
++ 2. hashCode相等那么对象肯定是同一个对象。
++ 3. 重写equals方法只是保证后续保证我们的业务类的相同,比如我们认为学生年纪和名称相同就是同一个学生。所以我们要学生类重写equals去表达这个概念。但是重写完equals我们最好保证逻辑上相等的对象最好物理地址也相等。所以我们最好重写hashCode。
 
 	
 代码理解
@@ -62,6 +47,10 @@ equals比较的是内容，==比较的是内存地址。Object类的equals方法
             }
         }
         return false;
+    }
+     @Override
+    public int hashCode() {
+        return age*12;
     }
 ```
 如果不重写hashcode 发现hashset里面存储的还是2个对象。为什么？这很好理解啊，因为虽然equals上你认为相等了,但是hashset用的hashcode做为key去查找。对象的hashCode不等用的还是父类的hashCode呀
