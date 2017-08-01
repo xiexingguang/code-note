@@ -20,7 +20,7 @@ https://storage.googleapis.com/golang/go1.7.darwin-amd64.pkg
 
 观察很多开源项目发现他们的项目里面没有src目录就可以猜测到他们也是这么完的。
 
-## 包的约定
+## 4 包的约定
 1.同一个目录下go文件的package要一致即
 ![](media/15010875235448.jpg)
 在go1 目录下 go1.go go2.go 的package 必须一样
@@ -51,5 +51,18 @@ main函数
 
 5.import 导入的是目录的名称而不是go 文件里面的package 所声明的名称,但使用的时候是使用package 声明的名称
 
+## 5 go build / go install / go run /go get
+
++  go build 即编译源码文件,如果 编译的文件为源码文件即不含main函数的文件,那么在pkg目录下或者当前目录下产生任何文件,如果编译了含有mian函数的包或者文件则会产生可执行文件
+
+注意我们可以在任意目录下执行go build 只要我们配置了GOPATH 路径。比如我们在/user/local 路径下
+执行 go build github.com/astaxie/bat 这个实际是找$GOPATH/scr  在拼接 github.com/astaxie/bat 这个路径去找的
+
+
++  go install 即对于不含有main函数的包,install 会在pkg目录下产生一个.a文件夹,同时在bin目录下生成一个可执行文件。
+注意go install 文件后面不能接文件,需要接文件夹即时包才行。即不能 go install a.go 这样只会报错`go install: no install location for .go files listed on command line (GOBIN not set)` 
+想看详细的信息可以 go install -v -work 
+
++ go run 
 
 
