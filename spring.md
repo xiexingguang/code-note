@@ -29,7 +29,6 @@
 
 ```
 
-
 ###  xml形式
   1.set方式注入
   
@@ -213,5 +212,7 @@ public class AnonotationService3 implements UserServiceInterface {
 ```
 ### IOC 扩展点及执行顺序
 
+
+mysqld --user=_mysql --basedir=/usr/local/mysql --datadir=/usr/local/mysql/data --plugin-dir=/usr/local/mysql/lib/plugin --log-error=/usr/local/mysql/data/mysqld.local.err --pid-file=/usr/local/mysql/data/mysqld.local.pid --keyring-file-data=/usr/local/mysql/keyring/keyring --early-plugin-load=keyring_file=keyring_file.so
 
 
